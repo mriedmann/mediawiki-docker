@@ -1,32 +1,22 @@
-FROM debian:sid
-MAINTAINER Gabriel Wicke <gwicke@wikimedia.org>
+FROM php:7-apache
 
 # Waiting in antiticipation for built-time arguments
 # https://github.com/docker/docker/issues/14634
-ENV MEDIAWIKI_VERSION wmf/1.27.0-wmf.9
+ENV MEDIAWIKI_VERSION wmf/1.29.0-wmf.9
+# the above is volatile
+# to get the latest see https://gerrit.wikimedia.org/r/#/admin/projects/mediawiki/core,branches
 
 # XXX: Consider switching to nginx.
 RUN set -x; \
     apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
-        apache2 \
-        libapache2-mod-php5 \
-        php5-mysql \
-        php5-cli \
-        php5-gd \
-        php5-curl \
         imagemagick \
+        libpng-dev \
         netcat \
-        git \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /var/cache/apt/archives/* \
-    && a2enmod rewrite \
-    && a2enmod proxy \
-    && a2enmod proxy_http \
-    # Remove the default Debian index page.
-    && rm /var/www/html/index.html
+        git
 
+RUN docker-php-ext-install mysqli opcache gd
 
 # MediaWiki setup
 RUN set -x; \
