@@ -1,6 +1,6 @@
 FROM php:7-apache
 
-# Waiting in antiticipation for built-time arguments
+# Waiting in antiticipation for build-time arguments
 # https://github.com/docker/docker/issues/14634
 ENV MEDIAWIKI_VERSION wmf/1.29.0-wmf.9
 # the above is volatile
