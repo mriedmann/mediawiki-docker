@@ -6,27 +6,35 @@ ENV MEDIAWIKI_VERSION wmf/1.29.0-wmf.9
 # the above is volatile
 # to get the latest see https://gerrit.wikimedia.org/r/#/admin/projects/mediawiki/core,branches
 
-# XXX: Consider switching to nginx.
 RUN set -x; \
-    apt-get update \
+    export DEBIAN_FRONTEND=noninteractive \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         imagemagick \
         libpng-dev \
+        libicu52 libicu-dev \
         netcat \
-        git
-
-RUN docker-php-ext-install mysqli opcache gd
-
-# MediaWiki setup
-RUN set -x; \
-    mkdir -p /usr/src \
+        git \
+        locales \
+    && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
+    && dpkg-reconfigure locales && locale-gen --purge en_US en_US.UTF-8 && update-locale LANG=en_US.UTF-8 \
+    && export LC_ALL=en_US.UTF-8 \
+    && pecl install apcu \
+    && docker-php-ext-install mysqli opcache gd intl\
+    && docker-php-ext-enable apcu \
+    \
+    && a2enmod rewrite \
+    && a2enmod proxy \
+    && a2enmod proxy_http \
+    \
+    && mkdir -p /var/www/html \
     && git clone \
         --depth 1 \
         -b $MEDIAWIKI_VERSION \
         https://gerrit.wikimedia.org/r/p/mediawiki/core.git \
-        /usr/src/mediawiki \
-    && cd /usr/src/mediawiki \
+        /var/www/html \
+    && cd /var/www/html \
     && git submodule update --init skins \
     && git submodule update --init vendor \
     && cd extensions \
@@ -35,7 +43,15 @@ RUN set -x; \
     && git submodule update --init VisualEditor \
     && cd VisualEditor \
     && git checkout $MEDIAWIKI_VERSION \
-    && git submodule update --init
+    && git submodule update --init \
+    && export DEBIAN_FRONTEND="" \
+    \
+    && apt-get remove -yq --purge libpng-dev libicu-dev g++ \
+    && apt-get clean \
+    && du -sh /usr/src/mediawiki \
+    && apt-get -qq clean \
+	&& rm -rf /tmp/* /var/tmp/* /var/cache/apt/* /var/lib/apt/lists/* \
+	&& apt-get -yq autoremove --purge
 
 COPY php.ini /usr/local/etc/php/conf.d/mediawiki.ini
 
