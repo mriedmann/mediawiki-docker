@@ -48,7 +48,7 @@ RUN set -x; \
     \
     && apt-get remove -yq --purge libpng-dev libicu-dev g++ \
     && apt-get clean \
-    && du -sh /usr/src/mediawiki \
+    && du -sh /var/www/html \
     && apt-get -qq clean \
 	&& rm -rf /tmp/* /var/tmp/* /var/cache/apt/* /var/lib/apt/lists/* \
 	&& apt-get -yq autoremove --purge
