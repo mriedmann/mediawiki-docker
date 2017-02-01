@@ -128,6 +128,7 @@ if [ -d "$MEDIAWIKI_SHARED" ]; then
 	if [ "$(ls images)" = "README" -a ! -L images ]; then
 		rm -fr images
 		mkdir -p "$MEDIAWIKI_SHARED/images"
+		chown -R www-data: "$MEDIAWIKI_SHARED/images"
 		ln -s "$MEDIAWIKI_SHARED/images" images
 	fi
 
