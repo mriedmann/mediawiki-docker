@@ -1,25 +1,41 @@
 db:
-  image: mysql
+  image: mariadb
   environment:
-    - MYSQL_ROOT_PASSWORD=password
-web:
+    MYSQL_ROOT_PASSWORD: root
+
+mediawiki:
   build: .
   ports:
-    - 80:80
-    - 443:443
-  # use the links section if you want to use a container for a database.
-  # if not, and you want to use an external database server, configure
-  # if with the environment variables in the 'environment' section.
-  # see README.md for more details.
+    - "80:80"
   links:
     - db
-  # uncomment the 'volumes' section to enable a shared volume with docker-compose
-  # volumes:
-  #   - /local/data/dir:/data:rw
+    - node-services
+  volumes:
+    - /var/lib/wiki/mediawiki:/data:rw
+    # Inject our specific settings
+#   - ./conf/mediawiki:/conf:ro
   environment:
-    - MEDIAWIKI_SITE_SERVER=//my-wiki
-    - MEDIAWIKI_SITE_NAME=My Awesome Wiki
-    - MEDIAWIKI_DB_PASSWORD=password
+    - MEDIAWIKI_SITE_SERVER=//wiki.local
+    - MEDIAWIKI_SITE_NAME=My Wiki
+    - MEDIAWIKI_SITE_LANG=en
+    - MEDIAWIKI_ADMIN_USER=admin
+    - MEDIAWIKI_ADMIN_PASS=rosebud
+    - MEDIAWIKI_UPDATE=true
+#   - MEDIAWIKI_VERSION=1.25.3
+    - MEDIAWIKI_DB_USER=root
+    - MEDIAWIKI_DB_HOST=db
 
-    # uncomment 'MEDIAWIKI_ENABLE_SSL' to enable SSL support
-    # - MEDIAWIKI_ENABLE_SSL=true
+    # Link to node services
+    - MEDIAWIKI_RESTBASE_URL=http://node-services:7231/localhost/v1
+
+node-services:
+  image: wikimedia/mediawiki-node-services
+  # Temporarily expose RB port directly.
+  # TODO: Set up rewrite at /api/rest_v1/.
+  ports:
+    - "7231"
+    - "8142"
+  volumes:
+    - /var/lib/wiki/node-services:/data
+  environment:
+    - MEDIAWIKI_API_URL=http://wiki.local/api.php
