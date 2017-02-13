@@ -17,8 +17,7 @@ RUN set -x; \
         git \
         wget zip unzip \
         locales \
-		libldap2-dev \
-		libldb-dev \
+		libldap2-dev libldb-dev \
     && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
     && dpkg-reconfigure locales && locale-gen --purge en_US en_US.UTF-8 && update-locale LANG=en_US.UTF-8 \
     && export LC_ALL=en_US.UTF-8 \
@@ -27,8 +26,15 @@ RUN set -x; \
     && docker-php-ext-install mysqli opcache gd intl mbstring \
     && pecl install apcu \
     && docker-php-ext-enable apcu \
-    \
-    && a2enmod rewrite \
+	&& export DEBIAN_FRONTEND="" \
+    && apt-get remove -yq --purge libpng-dev libicu-dev g++ libldap2-dev libldb-dev \
+    && apt-get clean \
+    && apt-get -qq clean \
+	&& rm -rf /tmp/* /var/tmp/* /var/cache/apt/* /var/lib/apt/lists/* \
+	&& apt-get -yq autoremove --purge
+    
+RUN set -x; \
+	a2enmod rewrite \
     && a2enmod proxy \
     && a2enmod proxy_http \
     \
@@ -43,14 +49,14 @@ RUN set -x; \
 	    3CEF8262806D3F0B6BA1DBDD7956EE477F901A30 \
 	    280DB7845A1DCAC92BB5A00A946B02565DC00AA7 \
     && export MEDIAWIKI_DOWNLOAD_URL="https://releases.wikimedia.org/mediawiki/$MEDIAWIKI_VERSION/mediawiki-$MEDIAWIKI_VERSION_FULL.tar.gz" \
-    && set -x \
     && curl -fSL "$MEDIAWIKI_DOWNLOAD_URL" -o mediawiki.tar.gz \
     && curl -fSL "${MEDIAWIKI_DOWNLOAD_URL}.sig" -o mediawiki.tar.gz.sig \
     && gpg --verify mediawiki.tar.gz.sig \
     && tar -xf mediawiki.tar.gz -C /var/www/html --strip-components=1 \
-     \
-    # Install composer \
-	&& EXPECTED_SIGNATURE=$(wget -q -O - https://composer.github.io/installer.sig) \
+	&& rm mediawiki.tar.gz
+
+# Install composer
+RUN EXPECTED_SIGNATURE=$(wget -q -O - https://composer.github.io/installer.sig) \
 	&& php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
 	&& ACTUAL_SIGNATURE=$(php -r "echo hash_file('SHA384', 'composer-setup.php');") \
 	&& if [ "$EXPECTED_SIGNATURE" != "$ACTUAL_SIGNATURE" ]; then \
@@ -59,15 +65,8 @@ RUN set -x; \
 	    exit 1; \
 	fi \
 	&& php composer-setup.php --install-dir=/usr/local/bin --filename=composer \
-    && rm composer-setup.php \
-    # Clean up \
-    && export DEBIAN_FRONTEND="" \
-    && apt-get remove -yq --purge libpng-dev libicu-dev g++ wget \
-    && apt-get clean \
-    && du -sh /var/www/html \
-    && apt-get -qq clean \
-	&& rm -rf /tmp/* /var/tmp/* /var/cache/apt/* /var/lib/apt/lists/* \
-	&& apt-get -yq autoremove --purge
+    && rm composer-setup.php
+
 
 COPY php.ini /usr/local/etc/php/conf.d/mediawiki.ini
 
