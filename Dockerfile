@@ -17,9 +17,13 @@ RUN set -x; \
         git \
         wget zip unzip \
         locales \
+		libldap2-dev \
+		libldb-dev \
     && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
     && dpkg-reconfigure locales && locale-gen --purge en_US en_US.UTF-8 && update-locale LANG=en_US.UTF-8 \
     && export LC_ALL=en_US.UTF-8 \
+	&& docker-php-ext-configure ldap --with-libdir=lib/x86_64-linux-gnu/ \
+    && docker-php-ext-install ldap \
     && docker-php-ext-install mysqli opcache gd intl mbstring \
     && pecl install apcu \
     && docker-php-ext-enable apcu \
