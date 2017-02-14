@@ -83,7 +83,7 @@ if [ -z "$MEDIAWIKI_DB_PORT" ]; then
 fi
 
 # Wait for the DB to come up
-while [ `/bin/nc $MEDIAWIKI_DB_HOST $MEDIAWIKI_DB_PORT < /dev/null > /dev/null; echo $?` != 0 ]; do
+while [ `/usr/bin/nc $MEDIAWIKI_DB_HOST $MEDIAWIKI_DB_PORT < /dev/null > /dev/null; echo $?` != 0 ]; do
     echo "Waiting for database to come up at $MEDIAWIKI_DB_HOST:$MEDIAWIKI_DB_PORT..."
     sleep 1
 done
@@ -209,7 +209,7 @@ fi
 # If a composer.lock and composer.json file exist, use them to install
 # dependencies for MediaWiki and desired extensions, skins, etc.
 if [ -e "$MEDIAWIKI_SHARED/composer.lock" -a -e "$MEDIAWIKI_SHARED/composer.json" ]; then
-	curl -sS https://getcomposer.org/installer | php
+#	curl -sS https://getcomposer.org/installer | php
 	cp "$MEDIAWIKI_SHARED/composer.lock" composer.lock
 	cp "$MEDIAWIKI_SHARED/composer.json" composer.json
 	php composer.phar install --no-dev
@@ -226,6 +226,13 @@ fi
 
 # Ensure images folder exists
 mkdir -p images
+
+# Prepare config
+/usr/local/bin/envsubst '$MEDIAWIKI_RESTBASE_URL' < /etc/nginx/mediawiki.conf.tpl > /etc/nginx/mediawiki.conf
+if [[$? != 0 ]]; then
+  echo >&2 'error: could not write nginx-config'
+  exit 1
+fi
 
 # Fix file ownership and permissions
 chown -R www-data: .

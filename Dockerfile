@@ -10,7 +10,9 @@ RUN set -xe; \
         imagemagick \
 		icu-libs \
 		libldap \
-		nginx
+		nginx \
+		supervisor \
+		netcat-openbsd
 
 # Add needed php modules
 RUN set -xe; \
@@ -20,7 +22,7 @@ RUN set -xe; \
         icu-dev \
 		openldap-dev \
 	&& docker-php-ext-configure ldap \
-    && docker-php-ext-install ldap opcache gd intl \
+    && docker-php-ext-install ldap opcache gd intl mysqli \
     && pecl install apcu \
     && docker-php-ext-enable apcu \
 	&& apk del .build-deps
@@ -63,10 +65,23 @@ RUN set -xe; \
 	&& rm *.tar.gz *.sig \
 	&& apk del .fetch-deps
 	
+# Install Envsubst for entrypoint-script
+RUN apk add --update libintl && \
+    apk add --virtual .build-deps gettext &&  \
+    cp /usr/bin/envsubst /usr/local/bin/envsubst && \
+    apk del .build-deps
+
+COPY nginx.conf /etc/nginx/nginx.conf
+COPY mediawiki.conf /etc/nginx/mediawiki.conf.tpl
 COPY php.ini /usr/local/etc/php/conf.d/mediawiki.ini
 
+COPY supervisord.conf /etc/supervisord.conf
+RUN sed -i.bak 's/listen.*/listen = \/var\/run\/php-fpm.sock/' /usr/local/etc/php-fpm.d/zz-docker.conf \
+    && printf "listen.owner = www-data\nlisten.group = www-data\nlisten.mode = 0660" >> /usr/local/etc/php-fpm.d/zz-docker.conf
+
 COPY docker-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 80 443
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["apachectl", "-e", "info", "-D", "FOREGROUND"]
+CMD ["/usr/bin/supervisord"]
