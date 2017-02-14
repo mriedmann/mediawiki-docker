@@ -1,45 +1,52 @@
-FROM php:7.0-apache
+FROM php:7.0-fpm-alpine
 
 # Waiting in anticipation for build-time arguments
 # https://github.com/docker/docker/issues/14634
 ENV MEDIAWIKI_VERSION 1.28
 ENV MEDIAWIKI_VERSION_FULL 1.28.0
 
-RUN set -x; \
-    export DEBIAN_FRONTEND=noninteractive \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
-        ca-certificates \
+RUN set -xe; \
+    apk add --no-cache --virtual .persistent-deps \
         imagemagick \
+		icu-libs \
+		libldap \
+		nginx
+
+# Add needed php modules
+RUN set -xe; \
+    apk add --no-cache --virtual .build-deps \
+		$PHPIZE_DEPS \
         libpng-dev \
-        libicu52 libicu-dev \
-        netcat \
-        git \
-        wget zip unzip \
-        locales \
-		libldap2-dev libldb-dev \
-    && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
-    && dpkg-reconfigure locales && locale-gen --purge en_US en_US.UTF-8 && update-locale LANG=en_US.UTF-8 \
-    && export LC_ALL=en_US.UTF-8 \
-	&& docker-php-ext-configure ldap --with-libdir=lib/x86_64-linux-gnu/ \
-    && docker-php-ext-install ldap \
-    && docker-php-ext-install mysqli opcache gd intl mbstring \
+        icu-dev \
+		openldap-dev \
+	&& docker-php-ext-configure ldap \
+    && docker-php-ext-install ldap opcache gd intl \
     && pecl install apcu \
     && docker-php-ext-enable apcu \
-	&& export DEBIAN_FRONTEND="" \
-    && apt-get remove -yq --purge libpng-dev libicu-dev g++ libldap2-dev libldb-dev \
-    && apt-get clean \
-    && apt-get -qq clean \
-	&& rm -rf /tmp/* /var/tmp/* /var/cache/apt/* /var/lib/apt/lists/* \
-	&& apt-get -yq autoremove --purge
-    
-RUN set -x; \
-	a2enmod rewrite \
-    && a2enmod proxy \
-    && a2enmod proxy_http \
-    \
-    && mkdir -p /var/www/html \
-	\
+	&& apk del .build-deps
+
+# Install composer
+RUN set -xe; \
+	apk add --no-cache --virtual .fetch-deps \
+		gnupg \
+		openssl \
+	&& EXPECTED_SIGNATURE=$(wget -q -O - https://composer.github.io/installer.sig) \
+	&& php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
+	&& ACTUAL_SIGNATURE=$(php -r "echo hash_file('SHA384', 'composer-setup.php');") \
+	&& if [ "$EXPECTED_SIGNATURE" != "$ACTUAL_SIGNATURE" ]; then \
+	    >&2 echo 'ERROR: Invalid installer signature'; \
+	    rm composer-setup.php; \
+	    exit 1; \
+	fi \
+	&& php composer-setup.php --install-dir=/usr/local/bin --filename=composer \
+    && rm composer-setup.php \
+	&& apk del .fetch-deps
+
+# Install Application
+RUN set -xe; \
+	apk add --no-cache --virtual .fetch-deps \
+		gnupg \
+		openssl \
 	# https://www.mediawiki.org/keys/keys.txt \
 	&& gpg --keyserver pool.sks-keyservers.net --recv-keys \
 	    441276E9CCD15F44F6D97D18C119E1A64D70938E \
@@ -53,25 +60,10 @@ RUN set -x; \
     && curl -fSL "${MEDIAWIKI_DOWNLOAD_URL}.sig" -o mediawiki.tar.gz.sig \
     && gpg --verify mediawiki.tar.gz.sig \
     && tar -xf mediawiki.tar.gz -C /var/www/html --strip-components=1 \
-	&& rm mediawiki.tar.gz
-
-# Install composer
-RUN EXPECTED_SIGNATURE=$(wget -q -O - https://composer.github.io/installer.sig) \
-	&& php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
-	&& ACTUAL_SIGNATURE=$(php -r "echo hash_file('SHA384', 'composer-setup.php');") \
-	&& if [ "$EXPECTED_SIGNATURE" != "$ACTUAL_SIGNATURE" ]; then \
-	    >&2 echo 'ERROR: Invalid installer signature'; \
-	    rm composer-setup.php; \
-	    exit 1; \
-	fi \
-	&& php composer-setup.php --install-dir=/usr/local/bin --filename=composer \
-    && rm composer-setup.php
-
-
+	&& rm *.tar.gz *.sig \
+	&& apk del .fetch-deps
+	
 COPY php.ini /usr/local/etc/php/conf.d/mediawiki.ini
-
-COPY apache/mediawiki.conf /etc/apache2/
-RUN echo "Include /etc/apache2/mediawiki.conf" >> /etc/apache2/apache2.conf
 
 COPY docker-entrypoint.sh /entrypoint.sh
 
